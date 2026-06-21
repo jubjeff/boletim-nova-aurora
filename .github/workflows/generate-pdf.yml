@@ -1,0 +1,40 @@
+name: Gerar PDF do Boletim
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'boletim-content.json'   # só roda quando o conteúdo for publicado
+
+jobs:
+  generate-pdf:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Cache Puppeteer / Chromium
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/puppeteer
+          key: puppeteer-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Instalar dependências
+        run: npm install puppeteer
+
+      - name: Gerar boletim.pdf
+        run: node generate_pdf.js
+
+      - name: Commit do PDF
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add boletim.pdf
+          git diff --staged --quiet || git commit -m "chore: atualiza boletim.pdf"
+          git push

@@ -580,6 +580,19 @@
   #qr-modal-actions .apply{ background:#1E9A93; border-color:#1E9A93; color:#fff; }
   #qr-modal-actions .apply:hover{ background:#17827c; }
 
+  /* Modal do token GitHub (Publicar) */
+  #token-modal{ display:none; position:fixed; inset:0; background:rgba(42,37,33,.5); z-index:999999; align-items:center; justify-content:center; font-family:'Libre Franklin',system-ui,sans-serif; }
+  #token-modal.open{ display:flex; }
+  #token-modal-box{ background:#FCFAF5; border-radius:14px; padding:28px 28px 22px; width:400px; max-width:92vw; box-shadow:0 24px 64px rgba(42,37,33,.28); }
+  #token-modal-box h3{ margin:0 0 8px; font:600 20px/1 'Cormorant Garamond',serif; color:#2A2521; }
+  #token-modal-box p{ margin:0 0 16px; font:400 13px/1.5 'Libre Franklin'; color:#564E45; }
+  #token-modal-box input{ width:100%; padding:9px 11px; border:1px solid #D9D1C4; border-radius:7px; font:400 13px/1.4 'Libre Franklin'; color:#2A2521; background:#fff; box-sizing:border-box; }
+  #token-modal-box input:focus{ outline:2px solid #1E9A93; border-color:#1E9A93; }
+  #token-modal-box .actions{ display:flex; gap:8px; justify-content:flex-end; margin-top:18px; }
+  #token-modal-box .actions button{ font:600 12px/1 'Libre Franklin'; padding:9px 16px; border-radius:8px; border:1px solid #E4DCCF; cursor:pointer; }
+  #token-modal-box .actions .cancel{ background:#fff; color:#564E45; }
+  #token-modal-box .actions .ok{ background:#1E9A93; border-color:#1E9A93; color:#fff; }
+
   /* Desktop: padding ao redor do boletim */
   @media (min-width: 861px) {
     #outer { padding: 32px 22px; }
@@ -804,6 +817,19 @@
 </div>
 
 <!-- Modal QR Code -->
+<div id="token-modal">
+  <div id="token-modal-box">
+    <h3>Token do GitHub</h3>
+    <p>Para publicar automaticamente, informe um <strong>Personal Access Token</strong> do GitHub com permissão de escrita no repositório.<br><br>
+    Ele fica salvo só no seu navegador e nunca sai do seu computador.</p>
+    <input type="password" id="token-input" placeholder="github_pat_..." autocomplete="off">
+    <div class="actions">
+      <button class="cancel" id="token-cancel">Cancelar</button>
+      <button class="ok" id="token-ok">Salvar e Publicar</button>
+    </div>
+  </div>
+</div>
+
 <div id="qr-modal">
   <div id="qr-modal-box">
     <h3>QR Code do Boletim</h3>
@@ -984,20 +1010,75 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
       location.reload();
     });
 
-    // "Publicar" — baixa boletim-content.json com o HTML editado.
-    // O arquivo deve ser colocado na pasta do projeto e o comando
-    //   node publish.js
-    // vai regenerar o PDF, commitar e fazer o deploy automaticamente.
-    if (btnPublish) btnPublish.addEventListener('click', function(){
+    // ── "Publicar" — envia conteúdo ao GitHub via API ───────────
+    var tokenModal  = $('token-modal');
+    var tokenInput  = $('token-input');
+    var tokenCancel = $('token-cancel');
+    var tokenOk     = $('token-ok');
+    var GH_TOKEN_KEY = 'gh-publish-token';
+    var GH_REPO      = 'jubjeff/boletim-nova-aurora';
+    var GH_FILE      = 'boletim-content.json';
+    var GH_BRANCH    = 'main';
+
+    function doPublish(token) {
       if (editing) setEditing(false);
-      var payload = JSON.stringify({ html: inner.innerHTML }, null, 0);
-      var blob = new Blob([payload], { type: 'application/json' });
-      var a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = 'boletim-content.json';
-      document.body.appendChild(a); a.click(); a.remove();
-      URL.revokeObjectURL(a.href);
-      setHint('Arquivo baixado — rode: node publish.js');
+      setHint('Publicando…');
+      if (btnPublish) btnPublish.disabled = true;
+
+      var payload = JSON.stringify({ html: inner.innerHTML });
+      var b64 = btoa(unescape(encodeURIComponent(payload)));
+      var apiUrl = 'https://api.github.com/repos/' + GH_REPO + '/contents/' + GH_FILE;
+      var headers = { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' };
+
+      // Busca SHA atual do arquivo (necessário para atualizar)
+      fetch(apiUrl + '?ref=' + GH_BRANCH, { headers: headers })
+        .then(function(r){ return r.ok ? r.json() : null; })
+        .then(function(existing) {
+          var body = {
+            message: 'chore: publica boletim ' + new Date().toLocaleDateString('pt-BR'),
+            content: b64,
+            branch: GH_BRANCH
+          };
+          if (existing && existing.sha) body.sha = existing.sha;
+          return fetch(apiUrl, { method: 'PUT', headers: headers, body: JSON.stringify(body) });
+        })
+        .then(function(r) {
+          if (btnPublish) btnPublish.disabled = false;
+          if (r && r.ok) {
+            setHint('✓ Publicado! PDF sendo gerado (~2 min)…');
+            setTimeout(function(){ setHint(''); }, 8000);
+          } else {
+            setHint('Erro ao publicar. Verifique o token.');
+          }
+        })
+        .catch(function() {
+          if (btnPublish) btnPublish.disabled = false;
+          setHint('Erro de conexão ao publicar.');
+        });
+    }
+
+    if (tokenCancel) tokenCancel.addEventListener('click', function(){
+      tokenModal.classList.remove('open');
+    });
+
+    if (tokenOk) tokenOk.addEventListener('click', function(){
+      var t = tokenInput.value.trim();
+      if (!t) return;
+      try { localStorage.setItem(GH_TOKEN_KEY, t); } catch(e){}
+      tokenModal.classList.remove('open');
+      doPublish(t);
+    });
+
+    if (btnPublish) btnPublish.addEventListener('click', function(){
+      var token = '';
+      try { token = localStorage.getItem(GH_TOKEN_KEY) || ''; } catch(e){}
+      if (!token) {
+        if (tokenInput) tokenInput.value = '';
+        if (tokenModal) tokenModal.classList.add('open');
+        setTimeout(function(){ if (tokenInput) tokenInput.focus(); }, 50);
+      } else {
+        doPublish(token);
+      }
     });
 
     // ── 4. QR Code — aponta automaticamente para este boletim ────
