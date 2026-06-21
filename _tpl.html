@@ -807,6 +807,7 @@
     <div id="qr-preview-wrap" style="text-align:center;"></div>
     <div id="qr-modal-actions">
       <button type="button" class="cancel" id="qr-cancel">Fechar</button>
+      <button type="button" class="apply" id="qr-download">&#x2B07; Baixar PNG</button>
     </div>
   </div>
 </div>
@@ -964,6 +965,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     var btnQR     = $('btnQR');
     var qrModal   = $('qr-modal');
     var qrCancel  = $('qr-cancel');
+    var qrDownload= $('qr-download');
     var qrPreview = $('qr-preview-wrap');
     var qrCanvas  = null; // QR só aparece no modal
 
@@ -1006,6 +1008,37 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
         if (qrModal) qrModal.classList.add('open');
       });
     }
+
+    // Gera o QR como PNG em alta resolução (desenho direto no canvas,
+    // crisp, ideal para inserir em slide). Quiet zone de 4 módulos.
+    function qrToPngDataUrl(text, pxSize){
+      var q;
+      try { q = qrcode(0,'M'); q.addData(text); q.make(); }
+      catch(e){ q = qrcode(0,'L'); q.addData(text); q.make(); }
+      var count  = q.getModuleCount();
+      var margin = 4;
+      var total  = count + margin*2;
+      pxSize = pxSize || 1024;
+      var cell = Math.max(1, Math.floor(pxSize/total));
+      var dim  = cell*total;
+      var canvas = document.createElement('canvas');
+      canvas.width = dim; canvas.height = dim;
+      var ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#ffffff'; ctx.fillRect(0,0,dim,dim);
+      ctx.fillStyle = '#000000';
+      for (var r=0;r<count;r++) for (var c=0;c<count;c++){
+        if (q.isDark(r,c)) ctx.fillRect((c+margin)*cell,(r+margin)*cell,cell,cell);
+      }
+      return canvas.toDataURL('image/png');
+    }
+
+    if (qrDownload) qrDownload.addEventListener('click', function(){
+      if (!viewUrl) return;
+      var a = document.createElement('a');
+      a.href = qrToPngDataUrl(viewUrl, 1024);
+      a.download = 'qrcode-boletim.png';
+      document.body.appendChild(a); a.click(); a.remove();
+    });
 
     if (qrCancel) qrCancel.addEventListener('click', function(){ qrModal.classList.remove('open'); });
     if (qrModal)  qrModal.addEventListener('click', function(e){ if(e.target===qrModal) qrModal.classList.remove('open'); });
