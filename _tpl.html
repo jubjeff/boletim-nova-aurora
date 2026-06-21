@@ -797,7 +797,8 @@
   <span class="sep"></span>
   <button id="btnQR" type="button">&#x2317; QR Code</button>
   <span class="sep"></span>
-  <button id="btnPrint" type="button" class="primary">🖨 Imprimir / PDF</button>
+  <button id="btnPublish" type="button" class="primary">&#x2B06; Publicar</button>
+  <button id="btnPrint" type="button">🖨 Imprimir</button>
   <button id="btnReset" type="button">↺ Restaurar</button>
   <span id="savehint"></span>
 </div>
@@ -913,6 +914,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     window.addEventListener('resize', fit);
 
     // ── 3. Edição direta na página ───────────────────────────
+    var btnPublish = $('btnPublish');
     var btnEdit  = $('btnEdit');
     var btnPrint = $('btnPrint');
     var btnReset = $('btnReset');
@@ -980,6 +982,22 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
       if (!confirm('Restaurar o boletim original e descartar suas edições?')) return;
       try { localStorage.removeItem(STORAGE_KEY); } catch(e){}
       location.reload();
+    });
+
+    // "Publicar" — baixa boletim-content.json com o HTML editado.
+    // O arquivo deve ser colocado na pasta do projeto e o comando
+    //   node publish.js
+    // vai regenerar o PDF, commitar e fazer o deploy automaticamente.
+    if (btnPublish) btnPublish.addEventListener('click', function(){
+      if (editing) setEditing(false);
+      var payload = JSON.stringify({ html: inner.innerHTML }, null, 0);
+      var blob = new Blob([payload], { type: 'application/json' });
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'boletim-content.json';
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(a.href);
+      setHint('Arquivo baixado — rode: node publish.js');
     });
 
     // ── 4. QR Code — aponta automaticamente para este boletim ────
