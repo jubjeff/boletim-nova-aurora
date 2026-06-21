@@ -29,8 +29,10 @@ const path = require('path');
   // Pequena folga para o layout estabilizar
   await new Promise(r => setTimeout(r, 800));
 
-  // Mede a altura natural do conteúdo para calcular a escala que faz
-  // tudo caber em UMA página A4 (210x297mm = 794x1123px @96dpi).
+  // Mede a altura JÁ sob a mídia de impressão (com as compressões do
+  // @media print aplicadas) para calcular a escala que faz tudo caber
+  // em UMA página A4 (210x297mm = 794x1123px @96dpi).
+  await page.emulateMediaType('print');
   const heightPx = await page.evaluate(() => {
     const inner = document.getElementById('sheet-inner');
     inner.style.transform = 'none';
