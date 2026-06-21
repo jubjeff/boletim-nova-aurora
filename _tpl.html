@@ -955,6 +955,22 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
       saveTimer = setTimeout(persist, 600);
     });
 
+    // Antes de imprimir: mede a altura real e aplica zoom exato para
+    // garantir 1 página A4 — funciona em qualquer browser.
+    var A4_PRINT_PX = 1123;
+    window.addEventListener('beforeprint', function(){
+      inner.style.setProperty('transform', 'none', 'important');
+      inner.style.setProperty('zoom', '1', 'important');
+      var natural = inner.scrollHeight;
+      if (natural > A4_PRINT_PX) {
+        inner.style.setProperty('zoom', String(A4_PRINT_PX / natural), 'important');
+      }
+    });
+    window.addEventListener('afterprint', function(){
+      inner.style.removeProperty('zoom');
+      fit();
+    });
+
     btnPrint.addEventListener('click', function(){
       if (editing) setEditing(false);
       setTimeout(function(){ window.print(); }, 50);
